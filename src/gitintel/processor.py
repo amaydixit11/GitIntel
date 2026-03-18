@@ -116,51 +116,7 @@ class GitProcessor:
         threads.sort(key=lambda x: x.get("id", 0) or 0, reverse=True)
         return threads
 
-    def get_knowledge_graph(self, repo_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Builds a network graph of connections between issues and PRs."""
-        nodes = []
-        links = []
-        node_map = {} # number -> node_index
 
-        all_nodes = []
-        if repo_data.get("issues"):
-            all_nodes.extend([(n, "Issue") for n in repo_data["issues"].get("nodes", []) if n])
-        if repo_data.get("pullRequests"):
-            all_nodes.extend([(n, "PR") for n in repo_data["pullRequests"].get("nodes", []) if n])
-
-        # 1. Create Nodes
-        for i, (node, ntype) in enumerate(all_nodes):
-            num = node.get("number")
-            nodes.append({
-                "id": str(num),
-                "title": node.get("title"),
-                "type": ntype,
-                "state": node.get("state")
-            })
-            node_map[num] = i
-
-        # 2. Find Mentions (Links)
-        mention_regex = re.compile(r'#(\d+)')
-        
-        for i, (node, ntype) in enumerate(all_nodes):
-            current_num = node.get("number")
-            
-            # Text to scan: Body + Comments
-            text_to_scan = node.get("body", "") or ""
-            comments = node.get("comments", {}).get("nodes", [])
-            for c in comments:
-                text_to_scan += " " + (c.get("body", "") or "")
-            
-            mentions = set(mention_regex.findall(text_to_scan))
-            for m in mentions:
-                target_num = int(m)
-                if target_num in node_map and target_num != current_num:
-                    links.append({
-                        "source": str(current_num),
-                        "target": str(target_num)
-                    })
-
-        return {"nodes": nodes, "links": links}
 
     def _matches_filters(self, node: Dict[str, Any], search: str, search_in: list, labels: list) -> bool:
         """Helper to check if a node matches the provided search criteria."""

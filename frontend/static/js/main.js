@@ -203,11 +203,56 @@ document.addEventListener('DOMContentLoaded', () => {
             threadList.innerHTML = '<li style="padding: 10px; opacity:0.5;">No results found for this selection.</li>';
         }
 
-        // Render Knowledge Graph if data exists
-        if (data.graph && data.graph.nodes.length > 0) {
-            graphSection.style.display = 'block';
-            setTimeout(() => renderKnowledgeGraph(data.graph), 100);
+        // NEW: Client-side graph extraction for speed
+        if (data.threads && data.threads.length > 0) {
+            const graphData = buildGraphFromData(data);
+            if (graphData.links.length > 0) {
+                graphSection.style.display = 'block';
+                setTimeout(() => renderKnowledgeGraph(graphData), 100);
+            } else {
+                graphSection.style.display = 'none';
+            }
         }
+    }
+
+    function buildGraphFromData(data) {
+        const nodes = [];
+        const links = [];
+        const nodeMap = new Map();
+
+        // 1. Create nodes from threads
+        data.threads.forEach((t, i) => {
+            nodes.push({
+                id: t.id.toString(),
+                title: t.title,
+                type: t.type,
+                state: t.status
+            });
+            nodeMap.set(t.id.toString(), i);
+        });
+
+        // 2. Scan full_content for links (Mentions)
+        const content = data.full_content;
+        const sections = content.split(/### (Issue|PR) #/);
+        
+        for (let i = 1; i < sections.length; i += 2) {
+            const type = sections[i];
+            const rest = sections[i+1];
+            const numMatch = rest.match(/^(\d+):/);
+            if (!numMatch) continue;
+            
+            const currentNum = numMatch[1];
+            const mentions = Array.from(rest.matchAll(/#(\d+)/g)).map(m => m[1]);
+            
+            const uniqueMentions = [...new Set(mentions)];
+            uniqueMentions.forEach(m => {
+                if (nodeMap.has(m) && m !== currentNum) {
+                    links.push({ source: currentNum, target: m });
+                }
+            });
+        }
+
+        return { nodes, links };
     }
 
     function renderKnowledgeGraph(graphData) {
