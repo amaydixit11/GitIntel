@@ -6,16 +6,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const results = document.getElementById('results');
     const isPrivate = document.getElementById('isPrivate');
     const tokenContainer = document.getElementById('tokenContainer');
+    const graphSection = document.getElementById('graphSection');
+    const resetGraphBtn = document.getElementById('resetGraphBtn');
 
     let currentRequest = null;
     let isInitialLoad = true;
+    let graphSimulation = null;
 
     // Toggle private repo token field
     isPrivate.addEventListener('change', (e) => {
         tokenContainer.style.display = e.target.checked ? 'block' : 'none';
     });
 
-    // --- SLUG URL AUTO-TRIGGER ---
     const handleUrlSlug = () => {
         const urlParams = new URLSearchParams(window.location.search);
         let repoUrl = urlParams.get('repo_url') || urlParams.get('url');
@@ -28,7 +30,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (repoUrl) {
-            // Normalize
             if (repoUrl.includes('/') && !repoUrl.startsWith('http')) {
                 if (!repoUrl.includes('github.com')) {
                     repoUrl = `https://github.com/${repoUrl}`;
@@ -129,6 +130,7 @@ document.addEventListener('DOMContentLoaded', () => {
         loading.style.display = 'block';
         results.style.opacity = '0.3';
         results.style.pointerEvents = 'none';
+        graphSection.style.display = 'none';
 
         try {
             const response = await fetch('/api/analyze', {
@@ -199,6 +201,136 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         } else {
             threadList.innerHTML = '<li style="padding: 10px; opacity:0.5;">No results found for this selection.</li>';
+        }
+
+        // Render Knowledge Graph if data exists
+        if (data.graph && data.graph.nodes.length > 0) {
+            graphSection.style.display = 'block';
+            setTimeout(() => renderKnowledgeGraph(data.graph), 100);
+        }
+    }
+
+    function renderKnowledgeGraph(graphData) {
+        const svg = d3.select("#knowledgeGraph");
+        svg.selectAll("*").remove(); // Clear previous
+
+        const width = svg.node().getBoundingClientRect().width;
+        const height = svg.node().getBoundingClientRect().height;
+
+        const g = svg.append("g");
+
+        // Zoom setup
+        const zoom = d3.zoom()
+            .scaleExtent([0.1, 4])
+            .on("zoom", (event) => g.attr("transform", event.transform));
+
+        svg.call(zoom);
+
+        resetGraphBtn.onclick = () => {
+            svg.transition().duration(750).call(zoom.transform, d3.zoomIdentity);
+        };
+
+        const simulation = d3.forceSimulation(graphData.nodes)
+            .force("link", d3.forceLink(graphData.links).id(d => d.id).distance(100))
+            .force("charge", d3.forceManyBody().strength(-300))
+            .force("center", d3.forceCenter(width / 2, height / 2))
+            .force("collision", d3.forceCollide().radius(40));
+
+        graphSimulation = simulation;
+
+        // Links
+        const link = g.append("g")
+            .attr("stroke", "#94a3b8")
+            .attr("stroke-opacity", 0.6)
+            .attr("stroke-width", 2)
+            .selectAll("line")
+            .data(graphData.links)
+            .join("line")
+            .attr("marker-end", "url(#arrowhead)");
+
+        // Arrowhead
+        svg.append("defs").append("marker")
+            .attr("id", "arrowhead")
+            .attr("viewBox", "0 -5 10 10")
+            .attr("refX", 25)
+            .attr("refY", 0)
+            .attr("markerWidth", 6)
+            .attr("markerHeight", 6)
+            .attr("orient", "auto")
+            .append("path")
+            .attr("d", "M0,-5L10,0L0,5")
+            .attr("fill", "#94a3b8");
+
+        // Nodes
+        const node = g.append("g")
+            .selectAll("g")
+            .data(graphData.nodes)
+            .join("g")
+            .call(drag(simulation));
+
+        // Node Circles
+        node.append("circle")
+            .attr("r", d => d.type === 'Issue' ? 12 : 14)
+            .attr("fill", d => d.type === 'PR' ? '#8B5CF6' : '#06B6D4')
+            .attr("stroke", "#000")
+            .attr("stroke-width", 2)
+            .style("box-shadow", "3px 3px 0 rgba(0,0,0,0.2)");
+
+        // Node Labels (#ID)
+        node.append("text")
+            .attr("dy", 4)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "9px")
+            .attr("font-weight", "800")
+            .attr("fill", "white")
+            .attr("pointer-events", "none")
+            .text(d => d.id);
+
+        // Hover Effect / Tooltip
+        const tooltip = d3.select("#graphTooltip");
+        node.on("mouseover", (event, d) => {
+            tooltip.style("display", "block")
+                .html(`<strong>#${d.id} (${d.type})</strong><br/>${d.title}<br/><em>Status: ${d.state}</em>`);
+            d3.select(event.currentTarget).select("circle").attr("r", 18);
+        })
+        .on("mousemove", (event) => {
+            tooltip.style("left", (event.pageX + 10) + "px")
+                .style("top", (event.pageY - 10) + "px");
+        })
+        .on("mouseout", (event) => {
+            tooltip.style("display", "none");
+            d3.select(event.currentTarget).select("circle").attr("r", d => d.type === 'Issue' ? 12 : 14);
+        });
+
+        simulation.on("tick", () => {
+            link
+                .attr("x1", d => d.source.x)
+                .attr("y1", d => d.source.y)
+                .attr("x2", d => d.target.x)
+                .attr("y2", d => d.target.y);
+
+            node.attr("transform", d => `translate(${d.x},${d.y})`);
+        });
+
+        function drag(simulation) {
+            function dragstarted(event) {
+                if (!event.active) simulation.alphaTarget(0.3).restart();
+                event.subject.fx = event.subject.x;
+                event.subject.fy = event.subject.y;
+            }
+            function dragged(event) {
+                event.subject.fx = event.x;
+                event.subject.fy = event.y;
+            }
+            function dragended(event) {
+                if (!event.active) simulation.alphaTarget(0);
+                event.subject.fx = null;
+                event.subject.fy = null;
+            }
+            return d3.drag()
+                .on("start", dragstarted)
+                .on("drag", dragged)
+                .on("end", dragended);
         }
     }
 

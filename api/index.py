@@ -101,12 +101,17 @@ async def analyze_repo(req: AnalyzeRequest):
             labels=req.include_labels
         )
         
+        # 6. Generate Graph
+        graph_data = processor.get_knowledge_graph(repo_data)
+        
+        # 7. Generate AI summary from the filtered digest
         summary = await summarizer.summarize_repo_intel(full_digest)
 
         return {
             "summary": summary,
             "threads": threads,
-            "full_content": full_digest
+            "full_content": full_digest,
+            "graph": graph_data
         }
     except Exception as e:
         import traceback
