@@ -54,6 +54,14 @@ document.addEventListener('DOMContentLoaded', () => {
              document.getElementById('repoUrl').value = e.state.repoUrl;
              document.getElementById('scope').value = e.state.scope || 'all';
              document.getElementById('limit').value = e.state.limit || 20;
+             document.getElementById('searchTerm').value = e.state.searchTerm || '';
+             document.getElementById('includeLabels').value = (e.state.includeLabels || []).join(', ');
+             
+             if (e.state.searchIn) {
+                 document.getElementById('searchInTitle').checked = e.state.searchIn.includes('title');
+                 document.getElementById('searchInBody').checked = e.state.searchIn.includes('body');
+                 document.getElementById('searchInComments').checked = e.state.searchIn.includes('comments');
+             }
              ingestForm.dispatchEvent(new Event('submit'));
         } else {
              handleUrlSlug();
@@ -68,13 +76,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const scope = document.getElementById('scope').value;
         const limit = parseInt(document.getElementById('limit').value);
         const token = document.getElementById('token').value.trim();
+        
+        // Search & Filters
+        const searchTerm = document.getElementById('searchTerm').value.trim();
+        const includeLabels = document.getElementById('includeLabels').value.split(',').map(l => l.trim()).filter(l => l !== "");
+        
+        const searchIn = [];
+        if (document.getElementById('searchInTitle').checked) searchIn.push('title');
+        if (document.getElementById('searchInBody').checked) searchIn.push('body');
+        if (document.getElementById('searchInComments').checked) searchIn.push('comments');
 
         if (!repoUrl) return;
 
     // --- SYNC URL ---
     const cleanSlug = repoUrl.replace('https://github.com/', '').replace('http://github.com/', '').replace('github.com/', '');
     if (window.location.pathname !== `/${cleanSlug}`) {
-        window.history.pushState({ repoUrl, scope, limit }, '', `/${cleanSlug}`);
+        window.history.pushState({ repoUrl, scope, limit, searchTerm, includeLabels, searchIn }, '', `/${cleanSlug}`);
     }
 
         // UI State: Loading
@@ -95,7 +112,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     repo_url: repoUrl,
                     scope: scope,
                     limit: limit,
-                    token: token || null
+                    token: token || null,
+                    search_term: searchTerm || null,
+                    search_in: searchIn,
+                    include_labels: includeLabels.length > 0 ? includeLabels : null
                 })
             });
 

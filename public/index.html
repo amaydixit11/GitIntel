@@ -62,6 +62,40 @@
                         </div>
                     </div>
 
+                    <!-- Filters Row (New) -->
+                    <div class="filters-row mt-8" style="display: grid; grid-template-columns: 1fr; gap: 24px; margin-bottom: 24px;">
+                        <div style="display: grid; grid-template-columns: 1fr; gap: 16px;">
+                            <div>
+                                <span class="label-text">Search Keyword:</span>
+                                <div class="input-group">
+                                    <div class="input-shadow"></div>
+                                    <input type="text" id="searchTerm" placeholder="e.g. probabilistic">
+                                </div>
+                            </div>
+                            <div style="display:flex; gap: 16px; flex-wrap: wrap; padding-top: 8px;">
+                                <label class="checkbox-group">
+                                    <input type="checkbox" id="searchInTitle" class="custom-checkbox" checked>
+                                    <span style="font-size: 14px; font-weight:600;">Title</span>
+                                </label>
+                                <label class="checkbox-group">
+                                    <input type="checkbox" id="searchInBody" class="custom-checkbox" checked>
+                                    <span style="font-size: 14px; font-weight:600;">Body</span>
+                                </label>
+                                <label class="checkbox-group">
+                                    <input type="checkbox" id="searchInComments" class="custom-checkbox" checked>
+                                    <span style="font-size: 14px; font-weight:600;">Discussion</span>
+                                </label>
+                            </div>
+                        </div>
+                        <div>
+                            <span class="label-text">Filter by Labels (comma separated):</span>
+                            <div class="input-group">
+                                <div class="input-shadow"></div>
+                                <input type="text" id="includeLabels" placeholder="e.g. bug, high-priority">
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Controls row -->
                     <div class="controls-row">
                         <!-- Pattern / Scope selector -->

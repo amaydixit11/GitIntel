@@ -4,7 +4,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from dotenv import load_dotenv
 
 # Add project root to path so imports work
@@ -31,9 +31,7 @@ app.add_middleware(
 
 # Helper to serve the frontend
 def get_index_html():
-    # Try public folder first (Vercel standard)
     path = os.path.join(PROJECT_ROOT, "public", "index.html")
-    # Fallback to local frontend/ folder during migration
     if not os.path.exists(path):
         path = os.path.join(PROJECT_ROOT, "frontend", "index.html")
     
@@ -53,6 +51,9 @@ class AnalyzeRequest(BaseModel):
     scope: str = "all"
     limit: int = 20
     token: Optional[str] = None
+    search_term: Optional[str] = None
+    search_in: Optional[List[str]] = ["title", "body", "comments"]
+    include_labels: Optional[List[str]] = None
 
 @app.post("/api/analyze")
 async def analyze_repo(req: AnalyzeRequest):
@@ -72,8 +73,23 @@ async def analyze_repo(req: AnalyzeRequest):
             scope=req.scope
         )
 
-        full_digest = processor.generate_full_digest(repo_data)
-        threads = processor.get_thread_summary_list(repo_data)
+        # Process data into full digest with filters
+        full_digest = processor.generate_full_digest(
+            repo_data,
+            search=req.search_term,
+            search_in=req.search_in,
+            labels=req.include_labels
+        )
+        
+        # Extract thread list for UI with filters
+        threads = processor.get_thread_summary_list(
+            repo_data,
+            search=req.search_term,
+            search_in=req.search_in,
+            labels=req.include_labels
+        )
+        
+        # Generate AI intelligence summary from filtered content
         summary = await summarizer.summarize_repo_intel(full_digest)
 
         return {
@@ -89,8 +105,6 @@ async def analyze_repo(req: AnalyzeRequest):
 # Catch-all for slugs
 @app.get("/{full_path:path}", response_class=HTMLResponse)
 async def catch_all(full_path: str):
-    # Let static files be served by Vercel CDN if possible
     if full_path.startswith("static/"):
         raise HTTPException(status_code=404)
-    # Serve index.html for everything else (slugs)
     return get_index_html()

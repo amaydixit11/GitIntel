@@ -50,6 +50,9 @@ class AnalyzeRequest(BaseModel):
     scope: str = "all"
     limit: int = 20
     token: Optional[str] = None
+    search_term: Optional[str] = None
+    search_in: Optional[List[str]] = ["title", "body", "comments"]
+    include_labels: Optional[List[str]] = None
 
 @app.post("/api/analyze")
 async def analyze_repo(req: AnalyzeRequest):
@@ -69,8 +72,23 @@ async def analyze_repo(req: AnalyzeRequest):
             scope=req.scope
         )
 
-        full_digest = processor.generate_full_digest(repo_data)
-        threads = processor.get_thread_summary_list(repo_data)
+        # 4. Process data with filters
+        full_digest = processor.generate_full_digest(
+            repo_data, 
+            search=req.search_term, 
+            search_in=req.search_in, 
+            labels=req.include_labels
+        )
+        
+        # 5. Extract thread list with filters
+        threads = processor.get_thread_summary_list(
+            repo_data, 
+            search=req.search_term, 
+            search_in=req.search_in, 
+            labels=req.include_labels
+        )
+        
+        # 6. Generate AI summary from the filtered digest
         summary = await summarizer.summarize_repo_intel(full_digest)
 
         return {

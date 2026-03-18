@@ -50,10 +50,11 @@ class GitProcessor:
         
         return "\n".join(output)
 
-    def generate_full_digest(self, repo_data: Dict[str, Any]) -> str:
+    def generate_full_digest(self, repo_data: Dict[str, Any], search: str = None, search_in: list = None, labels: list = None) -> str:
         """Generates the full LLM-ready text content for the whole repository."""
-        # Ensure we have a dict
         repo_data = repo_data or {}
+        search_in = search_in or ["title", "body", "comments"]
+        
         name = repo_data.get("name", "Unknown")
         owner = repo_data.get("owner", {}).get("login", "Unknown")
         desc = repo_data.get("description", "No description provided.")
@@ -67,49 +68,82 @@ class GitProcessor:
             "\n"
         ]
 
+        def filter_nodes(nodes):
+            return [n for n in nodes if n and self._matches_filters(n, search, search_in, labels)]
+
         # Issues
         issues_node = repo_data.get("issues")
         if issues_node:
-            digest.append("## ISSUES\n")
-            digest.append(self.format_thread(issues_node.get("nodes", []), "Issue"))
-            digest.append("\n" + "="*60 + "\n")
+            filtered = filter_nodes(issues_node.get("nodes", []))
+            if filtered:
+                digest.append("## ISSUES\n")
+                digest.append(self.format_thread(filtered, "Issue"))
+                digest.append("\n" + "="*60 + "\n")
 
         # Pull Requests
         prs_node = repo_data.get("pullRequests")
         if prs_node:
-            digest.append("## PULL REQUESTS\n")
-            digest.append(self.format_thread(prs_node.get("nodes", []), "PR"))
-            digest.append("\n" + "="*60 + "\n")
+            filtered = filter_nodes(prs_node.get("nodes", []))
+            if filtered:
+                digest.append("## PULL REQUESTS\n")
+                digest.append(self.format_thread(filtered, "PR"))
+                digest.append("\n" + "="*60 + "\n")
 
         return "\n".join(digest)
 
-    def get_thread_summary_list(self, repo_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def get_thread_summary_list(self, repo_data: Dict[str, Any], search: str = None, search_in: list = None, labels: list = None) -> List[Dict[str, Any]]:
         """Extracts a lightweight list of threads for the UI."""
         threads = []
         repo_data = repo_data or {}
+        search_in = search_in or ["title", "body", "comments"]
         
-        issues_node = repo_data.get("issues")
-        if issues_node:
-            for n in issues_node.get("nodes", []):
-                if not n: continue
-                threads.append({
-                    "id": n.get("number"),
-                    "title": n.get("title"),
-                    "type": "Issue",
-                    "status": n.get("state")
-                })
+        sections = [("issues", "Issue"), ("pullRequests", "PR")]
         
-        prs_node = repo_data.get("pullRequests")
-        if prs_node:
-            for n in prs_node.get("nodes", []):
-                if not n: continue
-                threads.append({
-                    "id": n.get("number"),
-                    "title": n.get("title"),
-                    "type": "PR",
-                    "status": n.get("state")
-                })
+        for key, label in sections:
+            node_root = repo_data.get(key)
+            if node_root:
+                for n in node_root.get("nodes", []):
+                    if not n: continue
+                    if self._matches_filters(n, search, search_in, labels):
+                        threads.append({
+                            "id": n.get("number"),
+                            "title": n.get("title"),
+                            "type": label,
+                            "status": n.get("state")
+                        })
         
         # Sort by ID descending
         threads.sort(key=lambda x: x.get("id", 0) or 0, reverse=True)
         return threads
+
+    def _matches_filters(self, node: Dict[str, Any], search: str, search_in: list, labels: list) -> bool:
+        """Helper to check if a node matches the provided search criteria."""
+        if not search and not labels:
+            return True
+            
+        # 1. Label Filter
+        if labels:
+            node_labels = [l.get("name").lower() for l in node.get("labels", {}).get("nodes", [])]
+            if not any(lab.lower() in node_labels for lab in labels):
+                return False
+        
+        # 2. Search Term
+        if search:
+            search_str = search.lower()
+            match_found = False
+            
+            if "title" in search_in and search_str in node.get("title", "").lower():
+                match_found = True
+            elif "body" in search_in and search_str in node.get("body", "").lower():
+                match_found = True
+            elif "comments" in search_in:
+                comments = node.get("comments", {}).get("nodes", [])
+                for c in comments:
+                    if search_str in c.get("body", "").lower():
+                        match_found = True
+                        break
+            
+            if not match_found:
+                return False
+                
+        return True
