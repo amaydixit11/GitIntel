@@ -265,6 +265,23 @@ button.primary-btn:active {
     display: block;
 }
 
+.filter-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 24px;
+    margin-bottom: 24px;
+}
+
+@media (min-width: 768px) {
+    .filter-grid-2 {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .filter-grid-3 {
+        grid-template-columns: 1fr 1fr 1fr;
+    }
+}
+
 /* Slider Customization */
 input[type="range"] {
     -webkit-appearance: none;
