@@ -4,7 +4,8 @@
 
 GitIntel is a context-aware intelligence engine designed to turn messy GitHub issue threads into structured, LLM-ready digests. It's built for contributors who need to understand a codebase's current challenges, constraints, and solved problems without digging through hundreds of comments manually.
 
-<img width="1279" height="1035" alt="image" src="https://github.com/user-attachments/assets/f68eb8db-b407-4996-896f-10ff6101ab0a" />
+<img width="1859" height="1038" alt="image" src="https://github.com/user-attachments/assets/891d6fce-8023-417b-a28a-d31c149b8aca" />
+
 
 ---
 
