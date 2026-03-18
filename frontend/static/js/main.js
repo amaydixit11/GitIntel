@@ -7,6 +7,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const isPrivate = document.getElementById('isPrivate');
     const tokenContainer = document.getElementById('tokenContainer');
 
+    let currentRequest = null;
+    let isInitialLoad = true;
+
     // Toggle private repo token field
     isPrivate.addEventListener('change', (e) => {
         tokenContainer.style.display = e.target.checked ? 'block' : 'none';
@@ -14,37 +17,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- SLUG URL AUTO-TRIGGER ---
     const handleUrlSlug = () => {
-        let path = window.location.pathname.substring(1); // Remove leading slash
-        if (!path || path === "" || path.startsWith('static') || path.startsWith('api')) return;
-
-        // Cleanup path (remove trailing slashes, etc)
-        path = path.replace(/\/$/, "");
-
-        let repoUrl = path;
-
-        // 1. Handle full https://github.com/owner/repo
-        if (repoUrl.startsWith('https:/github.com/')) {
-            repoUrl = repoUrl.replace('https:/github.com/', 'https://github.com/');
-        } else if (repoUrl.startsWith('http:/github.com/')) {
-            repoUrl = repoUrl.replace('http:/github.com/', 'https://github.com/');
-        }
-        // 2. Handle github.com/owner/repo
-        else if (repoUrl.startsWith('github.com/')) {
-            repoUrl = `https://${repoUrl}`;
-        }
-        // 3. Handle owner/repo
-        else if (repoUrl.includes('/') && !repoUrl.startsWith('http')) {
-            repoUrl = `https://github.com/${repoUrl}`;
+        const urlParams = new URLSearchParams(window.location.search);
+        let repoUrl = urlParams.get('repo_url') || urlParams.get('url');
+        
+        if (!repoUrl) {
+            let path = window.location.pathname.substring(1); 
+            if (!path || path === "" || path.startsWith('static') || path.startsWith('api')) return;
+            path = path.replace(/\/$/, "");
+            repoUrl = decodeURIComponent(path);
         }
 
-        // Validate and Set
-        if (repoUrl.includes('github.com/') && repoUrl.split('/').length >= 4) {
-             document.getElementById('repoUrl').value = repoUrl;
-             // Auto-submit after a short delay
-             setTimeout(() => {
-                 ingestForm.dispatchEvent(new Event('submit'));
-             }, 500);
+        if (repoUrl) {
+            // Normalize
+            if (repoUrl.includes('/') && !repoUrl.startsWith('http')) {
+                if (!repoUrl.includes('github.com')) {
+                    repoUrl = `https://github.com/${repoUrl}`;
+                } else {
+                    repoUrl = `https://${repoUrl}`;
+                }
+            } else if (repoUrl.startsWith('https:/github.com/')) {
+                 repoUrl = repoUrl.replace('https:/github.com/', 'https://github.com/');
+            }
+
+            if (repoUrl.includes('github.com/') && repoUrl.split('/').length >= 4) {
+                 document.getElementById('repoUrl').value = repoUrl;
+                 // Only trigger if it's the first load or something changed radically
+                 if (isInitialLoad) {
+                     isInitialLoad = false;
+                     // Direct call instead of dispatching event to avoid loops
+                     triggerAnalysis();
+                 }
+            }
         }
+    };
+
+    const triggerAnalysis = () => {
+        ingestForm.dispatchEvent(new Event('submit', { cancelable: true }));
     };
 
     handleUrlSlug();
@@ -62,22 +70,22 @@ document.addEventListener('DOMContentLoaded', () => {
                  document.getElementById('searchInBody').checked = e.state.searchIn.includes('body');
                  document.getElementById('searchInComments').checked = e.state.searchIn.includes('comments');
              }
-             ingestForm.dispatchEvent(new Event('submit'));
-        } else {
-             handleUrlSlug();
+             // Use internal trigger
+             doAnalysis();
         }
     });
 
-    // Handle Form Submission
-    ingestForm.addEventListener('submit', async (e) => {
+    ingestForm.onsubmit = (e) => {
         e.preventDefault();
+        doAnalysis();
+        return false;
+    };
 
+    const doAnalysis = async () => {
         const repoUrl = document.getElementById('repoUrl').value.trim();
         const scope = document.getElementById('scope').value;
         const limit = parseInt(document.getElementById('limit').value);
         const token = document.getElementById('token').value.trim();
-        
-        // Search & Filters
         const searchTerm = document.getElementById('searchTerm').value.trim();
         const includeLabels = document.getElementById('includeLabels').value.split(',').map(l => l.trim()).filter(l => l !== "");
         
@@ -88,11 +96,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!repoUrl) return;
 
-    // --- SYNC URL ---
-    const cleanSlug = repoUrl.replace('https://github.com/', '').replace('http://github.com/', '').replace('github.com/', '');
-    if (window.location.pathname !== `/${cleanSlug}`) {
-        window.history.pushState({ repoUrl, scope, limit, searchTerm, includeLabels, searchIn }, '', `/${cleanSlug}`);
-    }
+        // Abort previous if any
+        if (currentRequest) currentRequest.abort();
+        const controller = new AbortController();
+        currentRequest = controller;
+
+        // Sync URL (Only if different to avoid infinite state cycles)
+        const cleanSlug = repoUrl.replace('https://github.com/', '').replace('http://github.com/', '').replace('github.com/', '');
+        const targetPath = `/${cleanSlug}`;
+        if (window.location.pathname !== targetPath) {
+            window.history.pushState({ repoUrl, scope, limit, searchTerm, includeLabels, searchIn }, '', targetPath);
+        }
 
         // UI State: Loading
         submitBtn.disabled = true;
@@ -105,9 +119,8 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch('/api/analyze', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
+                signal: controller.signal,
                 body: JSON.stringify({
                     repo_url: repoUrl,
                     scope: scope,
@@ -125,11 +138,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const data = await response.json();
-
-            // UI State: Success
             updateUI(data);
-
         } catch (err) {
+            if (err.name === 'AbortError') return;
             console.error(err);
             alert(`Error: ${err.message}`);
         } finally {
@@ -138,17 +149,13 @@ document.addEventListener('DOMContentLoaded', () => {
             loading.style.display = 'none';
             results.style.opacity = '1';
             results.style.pointerEvents = 'auto';
+            currentRequest = null;
         }
-    });
+    };
 
     function updateUI(data) {
-        // 1. Summary
         document.getElementById('summaryText').value = data.summary;
-
-        // 2. Full Context
         document.getElementById('fullContentText').value = data.full_content;
-
-        // 3. Thread List
         const threadList = document.getElementById('threadList');
         threadList.innerHTML = '';
         
@@ -162,7 +169,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 li.style.alignItems = 'center';
 
                 const typeBadgeColor = thread.type === 'PR' ? '#8B5CF6' : '#06B6D4';
-                
                 li.innerHTML = `
                     <div style="flex-grow: 1;">
                         <span style="font-weight:700; color:var(--border-color); font-family:var(--font-mono);">#${thread.id}</span>
@@ -180,14 +186,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Global copy function
     window.copyToClipboard = (elementId) => {
-        const textArea = document.getElementById(elementId);
-        if (textArea) {
-            textArea.select();
-            document.execCommand('copy');
-            
-            // Temporary feedback
+        const el = document.getElementById(elementId);
+        if (!el) return;
+        
+        let text = el.value || el.innerText;
+        navigator.clipboard.writeText(text).then(() => {
             const btn = event.target;
             const originalText = btn.innerText;
             btn.innerText = 'Copied!';
@@ -198,7 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 btn.style.backgroundColor = '';
                 btn.style.color = '';
             }, 2000);
-        }
+        });
     };
 
     window.downloadResult = () => {
