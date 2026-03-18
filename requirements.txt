@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+httpx
+pydantic
+python-dotenv
+openai
+tiktoken
+jinja2
+pyyaml
