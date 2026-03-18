@@ -407,7 +407,7 @@ input[type="range"]::-webkit-slider-thumb {
     transform: translate(4px, 4px);
 }
 
-textarea.content-area {
+.content-area {
     width: 100%;
     background-color: var(--summary-bg);
     border: 3px solid var(--border-color);
@@ -415,10 +415,13 @@ textarea.content-area {
     padding: 16px;
     font-family: var(--font-mono);
     font-size: 0.875rem;
-    resize: none;
     position: relative;
     z-index: 2;
     outline: none;
+}
+
+textarea.content-area {
+    resize: none;
 }
 
 .copy-btn {
