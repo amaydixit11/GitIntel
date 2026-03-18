@@ -10,6 +10,7 @@ from typing import Optional, List
 from dotenv import load_dotenv
 
 # Ensure imports work from project root
+# For Vercel, api/index.py dirname is /var/task/api
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
@@ -20,7 +21,7 @@ from src.gitintel.summarizer import Summarizer
 
 load_dotenv()
 
-app = FastAPI(title="GitIntel Local Dev")
+app = FastAPI(title="GitIntel API")
 
 # Setup CORS
 app.add_middleware(
@@ -30,21 +31,31 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Use the new optimized 'public' folder
+# Use the optimized 'public' folder for files
 STATIC_DIR = os.path.join(PROJECT_ROOT, "public")
 
-# Serve the main index at root
+def get_index_html():
+    """Helper to find index.html on diverse Vercel/Local environments."""
+    paths = [
+        os.path.join(STATIC_DIR, "index.html"),
+        os.path.join(os.path.dirname(__file__), "index.html"),
+        os.path.join(PROJECT_ROOT, "frontend", "index.html")
+    ]
+    for path in paths:
+        if os.path.exists(path):
+            with open(path, "r") as f:
+                return f.read()
+    raise HTTPException(status_code=500, detail="index.html not found on this deployment.")
+
+# Routes
 @app.get("/", response_class=HTMLResponse)
 async def read_index():
-    with open(os.path.join(STATIC_DIR, "index.html")) as f:
-        return f.read()
+    return get_index_html()
 
-# Serve API health
 @app.get("/api/health")
 async def health():
     return {"status": "ok"}
 
-# The main analyzer endpoint
 class AnalyzeRequest(BaseModel):
     repo_url: str
     scope: str = "all"
@@ -76,7 +87,6 @@ async def analyze_repo(req: AnalyzeRequest):
             pr_states=req.pr_states
         )
 
-        # 4. Process data with filters
         full_digest = processor.generate_full_digest(
             repo_data, 
             search=req.search_term, 
@@ -84,7 +94,6 @@ async def analyze_repo(req: AnalyzeRequest):
             labels=req.include_labels
         )
         
-        # 5. Extract thread list with filters
         threads = processor.get_thread_summary_list(
             repo_data, 
             search=req.search_term, 
@@ -92,7 +101,6 @@ async def analyze_repo(req: AnalyzeRequest):
             labels=req.include_labels
         )
         
-        # 6. Generate AI summary from the filtered digest
         summary = await summarizer.summarize_repo_intel(full_digest)
 
         return {
@@ -105,17 +113,15 @@ async def analyze_repo(req: AnalyzeRequest):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
-# Catch-all for slugs (like /facebook/react)
 @app.get("/{full_path:path}", response_class=HTMLResponse)
 async def catch_all(full_path: str):
     if full_path.startswith("static") or full_path.startswith("api"):
-        # Real static files are handled by mount below
         raise HTTPException(status_code=404)
-    with open(os.path.join(STATIC_DIR, "index.html")) as f:
-        return f.read()
+    return get_index_html()
 
-# Mount static files at the end
-app.mount("/static", StaticFiles(directory=os.path.join(STATIC_DIR, "static")), name="static")
+# Mount static files ONLY if directory exists (for local dev)
+if os.path.exists(os.path.join(STATIC_DIR, "static")):
+    app.mount("/static", StaticFiles(directory=os.path.join(STATIC_DIR, "static")), name="static")
 
 if __name__ == "__main__":
-    uvicorn.run("src.server.main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("api.index:app", host="0.0.0.0", port=8000, reload=True)
