@@ -1,15 +1,16 @@
 import os
 import sys
+import uvicorn
 from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List
 from dotenv import load_dotenv
 
-# Add project root to path so imports work
-# Vercel structure: /var/task/api/index.py, root is /var/task
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+# Ensure imports work from project root
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
@@ -19,7 +20,7 @@ from src.gitintel.summarizer import Summarizer
 
 load_dotenv()
 
-app = FastAPI(title="GitIntel API")
+app = FastAPI(title="GitIntel Local Dev")
 
 # Setup CORS
 app.add_middleware(
@@ -29,23 +30,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Helper to serve the frontend
-def get_index_html():
-    path = os.path.join(PROJECT_ROOT, "public", "index.html")
-    if not os.path.exists(path):
-        path = os.path.join(PROJECT_ROOT, "frontend", "index.html")
-    
-    with open(path, "r") as f:
+# Use the new optimized 'public' folder
+STATIC_DIR = os.path.join(PROJECT_ROOT, "public")
+
+# Serve the main index at root
+@app.get("/", response_class=HTMLResponse)
+async def read_index():
+    with open(os.path.join(STATIC_DIR, "index.html")) as f:
         return f.read()
 
-@app.get("/", response_class=HTMLResponse)
-async def read_root():
-    return get_index_html()
-
+# Serve API health
 @app.get("/api/health")
 async def health():
     return {"status": "ok"}
 
+# The main analyzer endpoint
 class AnalyzeRequest(BaseModel):
     repo_url: str
     scope: str = "all"
@@ -54,6 +53,8 @@ class AnalyzeRequest(BaseModel):
     search_term: Optional[str] = None
     search_in: Optional[List[str]] = ["title", "body", "comments"]
     include_labels: Optional[List[str]] = None
+    issue_states: Optional[List[str]] = ["OPEN"]
+    pr_states: Optional[List[str]] = ["OPEN", "MERGED"]
 
 @app.post("/api/analyze")
 async def analyze_repo(req: AnalyzeRequest):
@@ -70,26 +71,28 @@ async def analyze_repo(req: AnalyzeRequest):
             owner=repo_info["owner"], 
             name=repo_info["name"], 
             limit=req.limit, 
-            scope=req.scope
+            scope=req.scope,
+            issue_states=req.issue_states,
+            pr_states=req.pr_states
         )
 
-        # Process data into full digest with filters
+        # 4. Process data with filters
         full_digest = processor.generate_full_digest(
-            repo_data,
-            search=req.search_term,
-            search_in=req.search_in,
+            repo_data, 
+            search=req.search_term, 
+            search_in=req.search_in, 
             labels=req.include_labels
         )
         
-        # Extract thread list for UI with filters
+        # 5. Extract thread list with filters
         threads = processor.get_thread_summary_list(
-            repo_data,
-            search=req.search_term,
-            search_in=req.search_in,
+            repo_data, 
+            search=req.search_term, 
+            search_in=req.search_in, 
             labels=req.include_labels
         )
         
-        # Generate AI intelligence summary from filtered content
+        # 6. Generate AI summary from the filtered digest
         summary = await summarizer.summarize_repo_intel(full_digest)
 
         return {
@@ -102,9 +105,17 @@ async def analyze_repo(req: AnalyzeRequest):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
-# Catch-all for slugs
+# Catch-all for slugs (like /facebook/react)
 @app.get("/{full_path:path}", response_class=HTMLResponse)
 async def catch_all(full_path: str):
-    if full_path.startswith("static/"):
+    if full_path.startswith("static") or full_path.startswith("api"):
+        # Real static files are handled by mount below
         raise HTTPException(status_code=404)
-    return get_index_html()
+    with open(os.path.join(STATIC_DIR, "index.html")) as f:
+        return f.read()
+
+# Mount static files at the end
+app.mount("/static", StaticFiles(directory=os.path.join(STATIC_DIR, "static")), name="static")
+
+if __name__ == "__main__":
+    uvicorn.run("src.server.main:app", host="0.0.0.0", port=8000, reload=True)

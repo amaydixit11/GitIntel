@@ -22,16 +22,27 @@ class GitHubClient:
             return {"owner": parts[0], "name": parts[1]}
         return None
 
-    async def fetch_repository_intel(self, owner: str, name: str, limit: int = 20, scope: str = "all") -> Dict[str, Any]:
-        """Fetches issues and PRs using GraphQL."""
+    async def fetch_repository_intel(self, 
+        owner: str, 
+        name: str, 
+        limit: int = 20, 
+        scope: str = "all",
+        issue_states: Optional[List[str]] = ["OPEN"],
+        pr_states: Optional[List[str]] = ["OPEN"]
+    ) -> Dict[str, Any]:
+        """Fetches issues and PRs using GraphQL with state filtering."""
         
         # Determine query based on scope
         issue_query = ""
         pull_request_query = ""
 
         if scope in ["all", "issues"]:
+            # Default to OPEN if none provided
+            istates = issue_states or ["OPEN", "CLOSED"]
+            istates_str = f"states: [{', '.join(istates)}]"
+            
             issue_query = f"""
-            issues(first: {limit}, orderBy: {{field: CREATED_AT, direction: DESC}}) {{
+            issues(first: {limit}, {istates_str}, orderBy: {{field: CREATED_AT, direction: DESC}}) {{
               nodes {{
                 number
                 title
@@ -52,8 +63,11 @@ class GitHubClient:
             """
 
         if scope in ["all", "prs", "decisions"]:
+            pstates = pr_states or ["OPEN", "MERGED", "CLOSED"]
+            pstates_str = f"states: [{', '.join(pstates)}]"
+            
             pull_request_query = f"""
-            pullRequests(first: {limit}, orderBy: {{field: CREATED_AT, direction: DESC}}) {{
+            pullRequests(first: {limit}, {pstates_str}, orderBy: {{field: CREATED_AT, direction: DESC}}) {{
               nodes {{
                 number
                 title

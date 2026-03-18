@@ -96,6 +96,40 @@
                         </div>
                     </div>
 
+                    <!-- States Filter Row -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
+                        <div>
+                            <span class="label-text">Issue States:</span>
+                            <div style="display:flex; gap: 12px; padding-top: 8px;">
+                                <label class="checkbox-group">
+                                    <input type="checkbox" id="issueOpen" class="custom-checkbox" checked>
+                                    <span style="font-size: 13px;">Open</span>
+                                </label>
+                                <label class="checkbox-group">
+                                    <input type="checkbox" id="issueClosed" class="custom-checkbox">
+                                    <span style="font-size: 13px;">Closed</span>
+                                </label>
+                            </div>
+                        </div>
+                        <div>
+                            <span class="label-text">PR States:</span>
+                            <div style="display:flex; gap: 12px; padding-top: 8px; flex-wrap: wrap;">
+                                <label class="checkbox-group">
+                                    <input type="checkbox" id="prOpen" class="custom-checkbox" checked>
+                                    <span style="font-size: 13px;">Open</span>
+                                </label>
+                                <label class="checkbox-group">
+                                    <input type="checkbox" id="prMerged" class="custom-checkbox" checked>
+                                    <span style="font-size: 13px;">Merged</span>
+                                </label>
+                                <label class="checkbox-group">
+                                    <input type="checkbox" id="prClosed" class="custom-checkbox">
+                                    <span style="font-size: 13px;">Closed</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Controls row -->
                     <div class="controls-row">
                         <!-- Pattern / Scope selector -->

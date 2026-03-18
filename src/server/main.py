@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from dotenv import load_dotenv
 
 # Ensure imports work from project root
@@ -53,6 +53,8 @@ class AnalyzeRequest(BaseModel):
     search_term: Optional[str] = None
     search_in: Optional[List[str]] = ["title", "body", "comments"]
     include_labels: Optional[List[str]] = None
+    issue_states: Optional[List[str]] = ["OPEN"]
+    pr_states: Optional[List[str]] = ["OPEN", "MERGED"]
 
 @app.post("/api/analyze")
 async def analyze_repo(req: AnalyzeRequest):
@@ -69,7 +71,9 @@ async def analyze_repo(req: AnalyzeRequest):
             owner=repo_info["owner"], 
             name=repo_info["name"], 
             limit=req.limit, 
-            scope=req.scope
+            scope=req.scope,
+            issue_states=req.issue_states,
+            pr_states=req.pr_states
         )
 
         # 4. Process data with filters

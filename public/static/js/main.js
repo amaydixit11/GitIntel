@@ -41,10 +41,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (repoUrl.includes('github.com/') && repoUrl.split('/').length >= 4) {
                  document.getElementById('repoUrl').value = repoUrl;
-                 // Only trigger if it's the first load or something changed radically
                  if (isInitialLoad) {
                      isInitialLoad = false;
-                     // Direct call instead of dispatching event to avoid loops
                      triggerAnalysis();
                  }
             }
@@ -70,7 +68,17 @@ document.addEventListener('DOMContentLoaded', () => {
                  document.getElementById('searchInBody').checked = e.state.searchIn.includes('body');
                  document.getElementById('searchInComments').checked = e.state.searchIn.includes('comments');
              }
-             // Use internal trigger
+
+             if (e.state.issueStates) {
+                 document.getElementById('issueOpen').checked = e.state.issueStates.includes('OPEN');
+                 document.getElementById('issueClosed').checked = e.state.issueStates.includes('CLOSED');
+             }
+             if (e.state.prStates) {
+                 document.getElementById('prOpen').checked = e.state.prStates.includes('OPEN');
+                 document.getElementById('prMerged').checked = e.state.prStates.includes('MERGED');
+                 document.getElementById('prClosed').checked = e.state.prStates.includes('CLOSED');
+             }
+
              doAnalysis();
         }
     });
@@ -94,21 +102,27 @@ document.addEventListener('DOMContentLoaded', () => {
         if (document.getElementById('searchInBody').checked) searchIn.push('body');
         if (document.getElementById('searchInComments').checked) searchIn.push('comments');
 
+        const issueStates = [];
+        if (document.getElementById('issueOpen').checked) issueStates.push('OPEN');
+        if (document.getElementById('issueClosed').checked) issueStates.push('CLOSED');
+
+        const prStates = [];
+        if (document.getElementById('prOpen').checked) prStates.push('OPEN');
+        if (document.getElementById('prMerged').checked) prStates.push('MERGED');
+        if (document.getElementById('prClosed').checked) prStates.push('CLOSED');
+
         if (!repoUrl) return;
 
-        // Abort previous if any
         if (currentRequest) currentRequest.abort();
         const controller = new AbortController();
         currentRequest = controller;
 
-        // Sync URL (Only if different to avoid infinite state cycles)
         const cleanSlug = repoUrl.replace('https://github.com/', '').replace('http://github.com/', '').replace('github.com/', '');
         const targetPath = `/${cleanSlug}`;
         if (window.location.pathname !== targetPath) {
-            window.history.pushState({ repoUrl, scope, limit, searchTerm, includeLabels, searchIn }, '', targetPath);
+            window.history.pushState({ repoUrl, scope, limit, searchTerm, includeLabels, searchIn, issueStates, prStates }, '', targetPath);
         }
 
-        // UI State: Loading
         submitBtn.disabled = true;
         submitBtn.innerText = 'Analyzing...';
         resultsSection.style.display = 'block';
@@ -123,12 +137,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 signal: controller.signal,
                 body: JSON.stringify({
                     repo_url: repoUrl,
-                    scope: scope,
+                    scope: scope, 
                     limit: limit,
                     token: token || null,
                     search_term: searchTerm || null,
                     search_in: searchIn,
-                    include_labels: includeLabels.length > 0 ? includeLabels : null
+                    include_labels: includeLabels.length > 0 ? includeLabels : null,
+                    issue_states: issueStates,
+                    pr_states: prStates
                 })
             });
 
