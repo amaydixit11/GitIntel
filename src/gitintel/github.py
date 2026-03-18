@@ -13,11 +13,14 @@ class GitHubClient:
         self.url = "https://api.github.com/graphql"
 
     def parse_repo_url(self, url: str) -> Optional[Dict[str, str]]:
-        """Extracts owner and name from a GitHub URL."""
-        parts = url.rstrip("/").split("/")
-        if len(parts) < 2:
-            return None
-        return {"owner": parts[-2], "name": parts[-1]}
+        """Extracts owner and name from a GitHub URL or slug."""
+        # Clean URL
+        url = url.rstrip("/").replace("https://", "").replace("http://", "").replace("github.com/", "")
+        parts = url.split("/")
+        
+        if len(parts) >= 2:
+            return {"owner": parts[0], "name": parts[1]}
+        return None
 
     async def fetch_repository_intel(self, owner: str, name: str, limit: int = 20, scope: str = "all") -> Dict[str, Any]:
         """Fetches issues and PRs using GraphQL."""
