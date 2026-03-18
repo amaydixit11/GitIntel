@@ -36,7 +36,7 @@ cd GitIntel
 
 # Create and activate venv
 python -m venv venv
-source venv/bin/activate  # On Linux/MacOS
+source venv/bin/activate  # On Linux
 
 # Build for Python 3.13 compatibility
 export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
