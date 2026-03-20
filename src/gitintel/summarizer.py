@@ -35,7 +35,7 @@ class Summarizer:
 
         try:
             response = self.client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4o-mini",
                 messages=[
                     {"role": "system", "content": "You are a senior software engineering assistant specializing in repository analysis and context extraction."},
                     {"role": "user", "content": prompt}

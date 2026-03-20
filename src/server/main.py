@@ -101,17 +101,25 @@ async def analyze_repo(req: AnalyzeRequest):
             labels=req.include_labels
         )
         
-        # 7. Generate AI summary from the filtered digest
-        summary = await summarizer.summarize_repo_intel(full_digest)
-
         return {
-            "summary": summary,
             "threads": threads,
             "full_content": full_digest
         }
     except Exception as e:
         import traceback
         traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+class SummarizeRequest(BaseModel):
+    content: str
+
+@app.post("/api/summarize")
+async def summarize_content(req: SummarizeRequest):
+    try:
+        summarizer = Summarizer()
+        summary = await summarizer.summarize_repo_intel(req.content)
+        return {"summary": summary}
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/{full_path:path}", response_class=HTMLResponse)

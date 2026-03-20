@@ -157,6 +157,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const data = await response.json();
             updateUI(data);
+
+            // Step 2: Request Summary in background
+            document.getElementById('summaryText').value = "### 🧠 Distilling intelligence...\nFinding patterns and architectural decisions in " + data.threads.length + " items.";
+            const summaryResponse = await fetch('/api/summarize', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                signal: controller.signal,
+                body: JSON.stringify({ content: data.full_content })
+            });
+            if (summaryResponse.ok) {
+                const sData = await summaryResponse.json();
+                document.getElementById('summaryText').value = sData.summary;
+            }
         } catch (err) {
             if (err.name === 'AbortError') return;
             console.error(err);
@@ -172,7 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     function updateUI(data) {
-        document.getElementById('summaryText').value = data.summary;
+        // SUMMARY NOT UPDATED HERE (Loaded in background now)
         document.getElementById('fullContentText').value = data.full_content;
         const threadList = document.getElementById('threadList');
         threadList.innerHTML = '';
