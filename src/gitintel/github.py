@@ -51,7 +51,7 @@ class GitHubClient:
                 createdAt
                 author {{ login }}
                 labels(first: 5) {{ nodes {{ name }} }}
-                comments(first: 10) {{
+                comments(first: 5) {{
                   nodes {{
                     author {{ login }}
                     body
@@ -76,14 +76,14 @@ class GitHubClient:
                 createdAt
                 author {{ login }}
                 labels(first: 5) {{ nodes {{ name }} }}
-                comments(first: 10) {{
+                comments(first: 5) {{
                   nodes {{
                     author {{ login }}
                     body
                     createdAt
                   }}
                 }}
-                reviews(first: 10) {{
+                reviews(first: 5) {{
                   nodes {{
                     state
                     author {{ login }}
