@@ -158,6 +158,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
             updateUI(data);
 
+            // Show results immediately while summary distills in background
+            loading.style.display = 'none';
+            results.style.opacity = '1';
+            results.style.pointerEvents = 'auto';
+            submitBtn.disabled = false;
+            submitBtn.innerText = 'Analyze';
+
             // Step 2: Request Summary in background
             document.getElementById('summaryText').value = "### 🧠 Distilling intelligence...\nFinding patterns and architectural decisions in " + data.threads.length + " items.";
             const summaryResponse = await fetch('/api/summarize', {
@@ -175,12 +182,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error(err);
             alert(`Error: ${err.message}`);
         } finally {
-            submitBtn.disabled = false;
-            submitBtn.innerText = 'Analyze';
-            loading.style.display = 'none';
-            results.style.opacity = '1';
-            results.style.pointerEvents = 'auto';
-            currentRequest = null;
+            // These were moved to the success path for better UX
         }
     };
 
